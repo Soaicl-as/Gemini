@@ -1,0 +1,4 @@
+Flask==2.3.2 # Using a specific version for stability
+instagrapi==1.20.0 # Using a specific version, check for latest compatible if needed
+requests # instagrapi dependency
+Flask-Session # To manage user sessions
