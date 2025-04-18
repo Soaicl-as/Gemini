@@ -1,4 +1,5 @@
 Flask==2.3.2
-instagrapi==2.1.3 # Updated to an available version
+instagrapi==2.1.3
 requests
 Flask-Session
+Pillow>=8.1.1 # Added Pillow as required by instagrapi
