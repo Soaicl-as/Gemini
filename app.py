@@ -4,7 +4,7 @@ import threading
 import secrets # Import the secrets module for generating a strong key
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from instagrapi import Client
-from instagrapi.exceptions import ChallengeRequired, LoginRequired, BadPassword, TwoFactorRequired
+from instagrapi.exceptions import ChallengeRequired, LoginRequired, BadPassword, TwoFactorRequired # Keep TwoFactorRequired
 from flask_session import Session # Import Flask-Session
 
 # --- Flask App Configuration ---
@@ -15,7 +15,7 @@ app.config["SESSION_TYPE"] = "filesystem" # Store sessions in the filesystem
 
 # Generate a strong, random secret key
 # Note: Using environment variables is generally more secure for production
-app.config['SECRET_KEY'] = secrets.token_hex(32) # <<< MODIFIED LINE: Generated a 32-byte (64 hex characters) random key
+app.config['SECRET_KEY'] = secrets.token_hex(32) # Generated a 32-byte (64 hex characters) random key
 
 Session(app)
 
@@ -66,19 +66,10 @@ def login():
             # client.dump_settings(f"session_{username}.json")
             return redirect(url_for('app_page'))
 
-        except ChallengeRequired:
-            add_log(session_id, "Challenge required. Account secured.")
-            # Store challenge URL in session or a global dict linked to session_id
-            # For simplicity, we'll just redirect and instruct the user
+        except (ChallengeRequired, TwoFactorRequired): # <<< MODIFIED LINE: Catching TwoFactorRequired here
+            add_log(session_id, "Challenge or Two-Factor Authentication required. Account secured.")
+            # Redirect to the challenge page for manual resolution
             return redirect(url_for('challenge_page'))
-
-        except TwoFactorRequired:
-            add_log(session_id, "Two-factor authentication required.")
-            # You would need to handle 2FA input here, e.g., render a new form
-            # For this basic version, we'll just log it as a failure
-            add_log(session_id, "2FA handling not implemented in this basic version.")
-            del clients[session_id] # Clean up client instance
-            return render_template('login.html', error="Two-factor authentication required. Not supported in this basic version.")
 
         except BadPassword:
             add_log(session_id, "Login failed: Bad password.")
@@ -96,14 +87,15 @@ def login():
 
 @app.route('/challenge')
 def challenge_page():
-    """Page instructing the user on how to handle the challenge."""
+    """Page instructing the user on how to handle the challenge/2FA manually."""
     session_id = session.sid
-    add_log(session_id, "Displaying challenge resolution instructions.")
+    # Updated log message to reflect handling both cases
+    add_log(session_id, "Displaying manual challenge/2FA resolution instructions.")
     return render_template('challenge.html')
 
 @app.route('/continue_login', methods=['POST'])
 def continue_login():
-    """Attempts to finalize login after user resolves the challenge manually."""
+    """Attempts to finalize login after user resolves the challenge/2FA manually."""
     session_id = session.sid
     client = clients.get(session_id)
 
@@ -111,15 +103,14 @@ def continue_login():
         add_log(session_id, "No client found for session. Redirecting to login.")
         return redirect(url_for('login'))
 
-    add_log(session_id, "User confirmed challenge resolved. Attempting to continue login.")
+    # Updated log message
+    add_log(session_id, "User confirmed manual resolution. Attempting to continue login.")
 
     try:
-        # instagrapi's Client object should retain the challenge state
-        # Simply trying to perform an action might trigger the final login step
-        # A more robust approach would be to call a specific challenge resolve method if instagrapi provides one after manual resolution.
-        # For simplicity here, we assume the client object is ready to proceed after the user's manual action.
-        # A simple test action:
-        client.get_self_info() # This should succeed if the challenge is passed
+        # Instagrapi's Client object should retain the challenge/2FA state.
+        # Attempting a simple API call should trigger the final login step
+        # if the user has successfully unsecured the account manually.
+        client.get_self_info() # This should succeed if the challenge/2FA is passed
 
         add_log(session_id, "Login continued successfully!")
         # Save session settings on successful login (optional)
@@ -128,7 +119,7 @@ def continue_login():
         return redirect(url_for('app_page'))
 
     except Exception as e:
-        add_log(session_id, f"Failed to continue login after challenge: {e}")
+        add_log(session_id, f"Failed to continue login after manual resolution: {e}")
         if session_id in clients:
             del clients[session_id] # Clean up client instance
         return render_template('login.html', error=f"Failed to continue login. Please try logging in again. Error: {e}")
@@ -289,4 +280,3 @@ if __name__ == '__main__':
     # Use 0.0.0.0 to make the server accessible externally for Render
     # Use a hardcoded port as requested, instead of an environment variable
     app.run(debug=True, host='0.0.0.0', port=5000)
-
