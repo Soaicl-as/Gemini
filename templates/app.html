@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instagram Service - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .log-container {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            padding: 1rem;
+            background-color: #ffffff;
+            border-radius: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4">
+    <div class="container mx-auto bg-white p-6 rounded-lg shadow-md">
+        <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">Instagram Service Dashboard</h2>
+
+        <div class="mb-6">
+            <h3 class="text-xl font-semibold mb-4 text-gray-700">Extract and Message</h3>
+            <form id="processForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="col-span-1">
+                    <label for="target_username" class="block text-gray-700 text-sm font-bold mb-2">Target Instagram Username</label>
+                    <input type="text" id="target_username" name="target_username" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                </div>
+
+                <div class="col-span-1">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Extract Type</label>
+                    <div class="mt-2">
+                        <label class="inline-flex items-center mr-6">
+                            <input type="radio" class="form-radio text-blue-600" name="extract_type" value="followers" checked>
+                            <span class="ml-2 text-gray-700">Followers</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="radio" class="form-radio text-blue-600" name="extract_type" value="following">
+                            <span class="ml-2 text-gray-700">Following</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="col-span-2">
+                    <label for="message_text" class="block text-gray-700 text-sm font-bold mb-2">Custom Message</label>
+                    <textarea id="message_text" name="message_text" rows="4" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required></textarea>
+                </div>
+
+                <div class="col-span-1">
+                    <label for="message_count" class="block text-gray-700 text-sm font-bold mb-2">Number of Accounts to Message</label>
+                    <input type="number" id="message_count" name="message_count" min="1" value="10" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                </div>
+
+                <div class="col-span-1">
+                    <label for="message_delay" class="block text-gray-700 text-sm font-bold mb-2">Delay Between Messages (seconds)</label>
+                    <input type="number" id="message_delay" name="message_delay" min="0" value="10" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                </div>
+
+                <div class="col-span-2 flex items-center justify-center">
+                    <button type="submit" class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200 ease-in-out">
+                        Start Process
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="mb-6">
+            <h3 class="text-xl font-semibold mb-4 text-gray-700">Live Logs</h3>
+            <div id="logDisplay" class="log-container text-sm text-gray-800">
+                <p>Waiting for process to start...</p>
+            </div>
+        </div>
+
+        <div class="text-center">
+             <a href="{{ url_for('logout') }}" class="text-red-500 hover:text-red-700 font-bold">Logout</a>
+        </div>
+
+    </div>
+
+    <script>
+        const processForm = document.getElementById('processForm');
+        const logDisplay = document.getElementById('logDisplay');
+        let lastLogCount = 0;
+
+        processForm.addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent default form submission
+
+            const formData = new FormData(processForm);
+            const data = Object.fromEntries(formData.entries());
+
+            // Clear logs and reset count on new process start
+            logDisplay.innerHTML = '';
+            lastLogCount = 0;
+
+            // Post data to the backend to start the process
+            fetch('/start_process', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                console.log(result);
+                // You could display a message based on the result status
+                if (result.status === 'error') {
+                     addLogToDisplay(`Error starting process: ${result.message}`);
+                } else {
+                     addLogToDisplay(`Process status: ${result.message}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                addLogToDisplay(`An error occurred: ${error}`);
+            });
+        });
+
+        function fetchLogs() {
+            fetch('/get_logs')
+            .then(response => response.json())
+            .then(logs => {
+                if (logs.length > lastLogCount) {
+                    // Append new logs
+                    for (let i = lastLogCount; i < logs.length; i++) {
+                        addLogToDisplay(logs[i]);
+                    }
+                    lastLogCount = logs.length;
+                    // Scroll to bottom
+                    logDisplay.scrollTop = logDisplay.scrollHeight;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching logs:', error);
+                // Consider adding an error message to the log display itself
+            });
+        }
+
+        function addLogToDisplay(logEntry) {
+            const p = document.createElement('p');
+            p.textContent = logEntry;
+            logDisplay.appendChild(p);
+        }
+
+        // Fetch logs every 2 seconds
+        setInterval(fetchLogs, 2000);
+
+        // Initial log fetch on page load
+        fetchLogs();
+
+    </script>
+</body>
+</html>
