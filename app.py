@@ -4,7 +4,7 @@ import threading
 import secrets # Import the secrets module for generating a strong key
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from instagrapi import Client
-from instagrapi.exceptions import ChallengeRequired, LoginRequired, BadPassword, TwoFactorRequired # Keep TwoFactorRequired
+from instagrapi.exceptions import ChallengeRequired, LoginRequired, BadPassword, TwoFactorRequired
 from flask_session import Session # Import Flask-Session
 
 # --- Flask App Configuration ---
@@ -58,16 +58,24 @@ def login():
 
         try:
             # Attempt to load previous session state if available (optional but good practice)
+            # add_log(session_id, "Attempting to load session settings...")
             # client.load_settings(f"session_{username}.json") # Requires saving settings on successful login
+            # add_log(session_id, "Session settings load attempted.")
 
+            add_log(session_id, "Calling client.login()...")
             client.login(username, password)
-            add_log(session_id, "Login successful!")
+            add_log(session_id, "client.login() completed successfully!") # This log indicates successful login
+
             # Save session settings on successful login (optional)
+            # add_log(session_id, "Attempting to save session settings...")
             # client.dump_settings(f"session_{username}.json")
+            # add_log(session_id, "Session settings save attempted.")
+
             return redirect(url_for('app_page'))
 
-        except (ChallengeRequired, TwoFactorRequired): # <<< MODIFIED LINE: Catching TwoFactorRequired here
-            add_log(session_id, "Challenge or Two-Factor Authentication required. Account secured.")
+        except (ChallengeRequired, TwoFactorRequired) as e: # Catching both exceptions
+            add_log(session_id, f"Login challenge or 2FA required: {type(e).__name__}") # Log the specific exception type
+            add_log(session_id, "Account secured. Redirecting to manual resolution page.")
             # Redirect to the challenge page for manual resolution
             return redirect(url_for('challenge_page'))
 
@@ -107,14 +115,19 @@ def continue_login():
     add_log(session_id, "User confirmed manual resolution. Attempting to continue login.")
 
     try:
+        add_log(session_id, "Calling client.get_self_info() to check session status...")
         # Instagrapi's Client object should retain the challenge/2FA state.
         # Attempting a simple API call should trigger the final login step
         # if the user has successfully unsecured the account manually.
         client.get_self_info() # This should succeed if the challenge/2FA is passed
+        add_log(session_id, "client.get_self_info() successful! Login is now complete.")
 
         add_log(session_id, "Login continued successfully!")
         # Save session settings on successful login (optional)
+        # add_log(session_id, "Attempting to save session settings...")
         # client.dump_settings(f"session_{client.username}.json") # Requires username attribute
+        # add_log(session_id, "Session settings save attempted.")
+
 
         return redirect(url_for('app_page'))
 
