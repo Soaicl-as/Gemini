@@ -53,16 +53,18 @@ def login():
         password = request.form.get('password')
         add_log(session_id, f"Attempting login for user: {username}")
 
-        client = Client()
-        clients[session_id] = client # Store client instance
+        try: # <<< Moved try block up to catch errors during client instantiation
+            add_log(session_id, "Attempting to instantiate instagrapi Client...") # <<< New log
+            client = Client()
+            add_log(session_id, "instagrapi Client instantiated successfully.") # <<< New log
+            clients[session_id] = client # Store client instance
 
-        try:
             # Attempt to load previous session state if available (optional but good practice)
             # add_log(session_id, "Attempting to load session settings...")
             # client.load_settings(f"session_{username}.json") # Requires saving settings on successful login
             # add_log(session_id, "Session settings load attempted.")
 
-            add_log(session_id, "Calling client.login()...")
+            add_log(session_id, "Calling client.login()...") # <<< This log is now inside the try block
             client.login(username, password)
             add_log(session_id, "client.login() completed successfully!") # This log indicates successful login
 
@@ -81,11 +83,14 @@ def login():
 
         except BadPassword:
             add_log(session_id, "Login failed: Bad password.")
-            del clients[session_id]
+            # Ensure client is deleted even if instantiated before BadPassword
+            if session_id in clients:
+                 del clients[session_id]
             return render_template('login.html', error="Invalid username or password.")
 
-        except Exception as e:
-            add_log(session_id, f"An unexpected error occurred during login: {e}")
+        except Exception as e: # <--- This catches everything else
+            add_log(session_id, f"An unexpected error occurred during login: {e}") # This log *should* appear
+            # Ensure client is deleted if instantiated before the general Exception
             if session_id in clients:
                  del clients[session_id]
             return render_template('login.html', error=f"An error occurred: {e}")
